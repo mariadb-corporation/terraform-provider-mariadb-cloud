@@ -15,8 +15,9 @@ import (
 //go:generate terraform fmt -recursive ./examples/
 
 // Run the docs generation tool, check its repository for more information on how it works and how docs
-// can be customized.
-//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+// can be customized. The provider name is pinned because tfplugindocs would otherwise take it from the
+// checkout directory, which no longer matches it since the repository was renamed.
+//go:generate go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs generate --provider-name terraform-provider-skysql
 
 var (
 	// these will be set by the goreleaser configuration
