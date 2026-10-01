@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.8] - 2026-10-01
+### Changed
+- Release files are now named `terraform-provider-mariadb-cloud`, after the repository's new name (`mariadb-corporation/terraform-provider-mariadb-cloud`). The provider's behavior is unchanged.
+
 ## [3.5.7] - 2026-07-17
 ### Added
 - `maxscale_nodes` can now be changed in place. The provider applies the change through the service nodes API instead of destroying and recreating the service. Removing the attribute from configuration still forces replacement.
