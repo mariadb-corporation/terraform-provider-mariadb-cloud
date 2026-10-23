@@ -272,14 +272,14 @@ var serviceResourceSchemaV0 = schema.Schema{
 		},
 		"volume_iops": schema.Int64Attribute{
 			Optional:    true,
-			Description: "The volume IOPS. This is only applicable for AWS",
+			Description: "The volume IOPS. Applies to AWS, and to GCP with volume_type hyperdisk-balanced. Left unset on hyperdisk-balanced, the volume gets the free 3000 IOPS",
 			PlanModifiers: []planmodifier.Int64{
 				int64planmodifier.UseStateForUnknown(),
 			},
 		},
 		"volume_throughput": schema.Int64Attribute{
 			Optional:    true,
-			Description: "The volume Throughput. This is only applicable for AWS",
+			Description: "The volume throughput. Applies to AWS gp3 (MB/s), and to GCP with volume_type hyperdisk-balanced (MiB/s). Left unset on hyperdisk-balanced, the volume gets the free 140 MiB/s",
 			PlanModifiers: []planmodifier.Int64{
 				int64planmodifier.UseStateForUnknown(),
 			},
@@ -304,7 +304,7 @@ var serviceResourceSchemaV0 = schema.Schema{
 		"volume_type": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "The volume type. Valid values are: gp3 and io1. This is only applicable for AWS",
+			Description: "The volume type. Valid values are: gp3 and io1 on AWS, and pd-ssd and hyperdisk-balanced on GCP. On GCP, leave it unset and the API picks the disk the region's machines can attach: pd-ssd, or hyperdisk-balanced in regions on n4 machines, which can only attach Hyperdisk. Setting hyperdisk-balanced in any other region fails the create",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 				stringplanmodifier.RequiresReplaceIf(
@@ -650,12 +650,15 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	tflog.Trace(ctx, "created a resource")
 
-	if service.StorageVolume.IOPS > 0 {
+	// Like readServiceState, only keep the IOPS and throughput the config sets. The
+	// API fills in defaults for the rest, e.g. 3000 IOPS on GCP Hyperdisk, and those
+	// must not show up as values the plan didn't have.
+	if !state.VolumeIOPS.IsNull() && service.StorageVolume.IOPS > 0 {
 		state.VolumeIOPS = types.Int64Value(int64(service.StorageVolume.IOPS))
 	} else {
 		state.VolumeIOPS = types.Int64Null()
 	}
-	if service.StorageVolume.Throughput > 0 {
+	if !state.VolumeThroughput.IsNull() && service.StorageVolume.Throughput > 0 {
 		state.VolumeThroughput = types.Int64Value(int64(service.StorageVolume.Throughput))
 	} else {
 		state.VolumeThroughput = types.Int64Null()
@@ -1029,6 +1032,7 @@ func (r *ServiceResource) updateServiceStorage(ctx context.Context, plan *Servic
 
 		state.Storage = plan.Storage
 		state.VolumeIOPS = plan.VolumeIOPS
+		state.VolumeThroughput = plan.VolumeThroughput
 		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -1533,26 +1537,33 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 
 	} else if plan.Provider.ValueString() == "gcp" {
-		if !(plan.VolumeType.ValueString() == "" || plan.VolumeType.IsNull() || plan.VolumeType.ValueString() == "pd-ssd") {
+		// An unset volume_type stays unknown until the API picks the disk: pd-ssd, or
+		// hyperdisk-balanced in regions whose machines (n4) can't attach pd-ssd.
+		if !Contains[string]([]string{"", "pd-ssd", "hyperdisk-balanced"}, plan.VolumeType.ValueString()) {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("volume_type"),
 				fmt.Sprintf("volume_type = %q is not supported for %q provider",
 					plan.VolumeType.ValueString(),
 					plan.Provider.ValueString(),
 				),
-				fmt.Sprintf("Volume type is not supported for %q provider", plan.Provider.ValueString()))
+				fmt.Sprintf("Use pd-ssd or hyperdisk-balanced for volume_type on the %q provider", plan.Provider.ValueString()))
 			return
 		}
 
-		if plan.VolumeType.ValueString() == "" || plan.VolumeType.IsNull() {
-			resp.Plan.SetAttribute(ctx, path.Root("volume_type"), types.StringValue("pd-ssd"))
-		}
+		if plan.VolumeType.ValueString() != "hyperdisk-balanced" {
+			if !plan.VolumeIOPS.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root("volume_iops"),
+					"volume_iops needs volume_type = \"hyperdisk-balanced\"",
+					fmt.Sprintf("Volume IOPS can only be set on hyperdisk-balanced volumes for the %q provider", plan.Provider.ValueString()))
+				return
+			}
 
-		if !plan.VolumeIOPS.IsNull() {
-			resp.Diagnostics.AddAttributeError(path.Root("volume_iops"),
-				fmt.Sprintf("volume_iops is not supported for %q provider", plan.Provider.ValueString()),
-				fmt.Sprintf("Volume IOPS are not supported for %q provider", plan.Provider.ValueString()))
-			return
+			if !plan.VolumeThroughput.IsNull() {
+				resp.Diagnostics.AddAttributeError(path.Root("volume_throughput"),
+					"volume_throughput needs volume_type = \"hyperdisk-balanced\"",
+					fmt.Sprintf("Volume throughput can only be set on hyperdisk-balanced volumes for the %q provider", plan.Provider.ValueString()))
+				return
+			}
 		}
 	} else if plan.Provider.ValueString() == "azure" {
 		if plan.VolumeType.ValueString() != "" && plan.VolumeType.ValueString() != "StandardSSD_LRS" {
