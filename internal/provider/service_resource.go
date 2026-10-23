@@ -304,7 +304,7 @@ var serviceResourceSchemaV0 = schema.Schema{
 		"volume_type": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "The volume type. Valid values are: gp3 and io1 on AWS, and pd-ssd and hyperdisk-balanced on GCP. Left unset on GCP, the volume is pd-ssd, or hyperdisk-balanced in regions whose machines can only attach Hyperdisk (n4)",
+			Description: "The volume type. Valid values are: gp3 and io1 on AWS, and pd-ssd and hyperdisk-balanced on GCP. On GCP, leave it unset and the API picks the disk the region's machines can attach: pd-ssd, or hyperdisk-balanced in regions on n4 machines, which can only attach Hyperdisk. Setting hyperdisk-balanced in any other region fails the create",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 				stringplanmodifier.RequiresReplaceIf(

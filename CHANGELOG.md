@@ -5,7 +5,7 @@
 - GCP services in regions on n4 machines, which can only attach Hyperdisk, no longer fail with "Provider produced inconsistent result after apply". An unset `volume_type` on GCP is left to the API, which picks `pd-ssd` or `hyperdisk-balanced`, and the IOPS and throughput the API fills in stay out of state unless the configuration sets them (MCDEV-5319).
 
 ### Added
-- GCP accepts `volume_type = "hyperdisk-balanced"` with optional `volume_iops` and `volume_throughput`, and both can be changed in place. Google allows one performance change per volume every 4 hours. On GCP, `volume_iops` and `volume_throughput` now need `hyperdisk-balanced`; they never applied to `pd-ssd`.
+- GCP accepts `volume_type = "hyperdisk-balanced"` in regions on n4 machines, with optional `volume_iops` and `volume_throughput`, and both can be changed in place. Other regions reject it, so leave `volume_type` unset on GCP. Google allows one performance change per volume every 4 hours. On GCP, `volume_iops` and `volume_throughput` now need `hyperdisk-balanced`; they never applied to `pd-ssd`.
 
 ## [3.5.8] - 2026-10-01
 ### Changed

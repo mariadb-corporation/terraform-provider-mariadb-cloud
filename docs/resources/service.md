@@ -106,7 +106,7 @@ resource "skysql_service" "galera" {
 - `version` (String) The software version
 - `volume_iops` (Number) The volume IOPS. Applies to AWS, and to GCP with volume_type hyperdisk-balanced. Left unset on hyperdisk-balanced, the volume gets the free 3000 IOPS
 - `volume_throughput` (Number) The volume throughput. Applies to AWS gp3 (MB/s), and to GCP with volume_type hyperdisk-balanced (MiB/s). Left unset on hyperdisk-balanced, the volume gets the free 140 MiB/s
-- `volume_type` (String) The volume type. Valid values are: gp3 and io1 on AWS, and pd-ssd and hyperdisk-balanced on GCP. Left unset on GCP, the volume is pd-ssd, or hyperdisk-balanced in regions whose machines can only attach Hyperdisk (n4)
+- `volume_type` (String) The volume type. Valid values are: gp3 and io1 on AWS, and pd-ssd and hyperdisk-balanced on GCP. On GCP, leave it unset and the API picks the disk the region's machines can attach: pd-ssd, or hyperdisk-balanced in regions on n4 machines, which can only attach Hyperdisk. Setting hyperdisk-balanced in any other region fails the create
 - `wait_for_creation` (Boolean) Whether to wait for the service to be created. Valid values are: true or false
 - `wait_for_deletion` (Boolean) Whether to wait for the service to be deleted. Valid values are: true or false
 - `wait_for_update` (Boolean) Whether to wait for the service to be updated. Valid values are: true or false
