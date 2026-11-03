@@ -538,7 +538,7 @@ func (r *ConfigResource) applyReplicaValues(ctx context.Context, configID string
 	return diags
 }
 
-// replicaErrorDetail writes the message of a failed replica value call. DPS answers 404 to every
+// replicaErrorDetail writes the message of a failed replica value call. The API answers 404 to every
 // replica value call when the replica values are not turned on, and that looks the same as a
 // missing config, so the message names both.
 func replicaErrorDetail(prefix string, err error) string {

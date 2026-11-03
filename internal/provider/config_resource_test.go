@@ -640,7 +640,7 @@ func TestConfigResource_ReplicaValues(t *testing.T) {
 	})
 }
 
-// TestConfigResource_ReplicaValuesNotAvailable verifies the message when DPS has the replica
+// TestConfigResource_ReplicaValuesNotAvailable verifies the message when the API has the replica
 // values turned off and answers 404.
 func TestConfigResource_ReplicaValuesNotAvailable(t *testing.T) {
 	configureOnce.Reset()
