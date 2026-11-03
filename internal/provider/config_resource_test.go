@@ -527,3 +527,154 @@ func TestConfigResource_AllowRestartFalse_BlocksRestartVarsOnUpdate(t *testing.T
 		},
 	})
 }
+
+func setConfigReplicaValueResponse(t *testing.T, variableName string, expectedValue string) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		r := require.New(t)
+		r.Equal(http.MethodPost, req.Method)
+		r.Equal("/provisioning/v1/configs/"+testConfigID+"/replica-values/"+variableName, req.URL.Path)
+		// the replica calls have no allow_restart: a variable that needs a restart has no replica value
+		r.Empty(req.URL.Query().Get("allow_restart"))
+
+		var payload provisioning.ConfigValueRequest
+		r.NoError(json.NewDecoder(req.Body).Decode(&payload))
+		r.Equal(expectedValue, payload.Value)
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func unsetConfigReplicaValueResponse(t *testing.T, variableName string) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
+		r := require.New(t)
+		r.Equal(http.MethodDelete, req.Method)
+		r.Equal("/provisioning/v1/configs/"+testConfigID+"/replica-values/"+variableName, req.URL.Path)
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// TestConfigResource_ReplicaValues verifies that replica_values are set on create, and that a
+// change sets the new and changed variables and unsets the removed ones, so that the replicas
+// follow the primary again.
+func TestConfigResource_ReplicaValues(t *testing.T) {
+	configureOnce.Reset()
+
+	testUrl, expectRequest, close := mockSkySQLAPI(t)
+	defer close()
+	os.Setenv("TF_SKYSQL_API_KEY", "[api-key]")
+	os.Setenv("TF_SKYSQL_API_BASE_URL", testUrl)
+
+	// Provider configure
+	expectRequest(versionsResponse(t))
+
+	// --- Step 1: create with two replica values, and no base values ---
+	expectRequest(createConfigResponse(t))
+	// alphabetical order
+	expectRequest(setConfigReplicaValueResponse(t, "innodb_flush_log_at_trx_commit", "2"))
+	expectRequest(setConfigReplicaValueResponse(t, "sync_binlog", "100"))
+	// Read after create
+	expectRequest(getConfigResponse(t))
+
+	// --- Step 2: change one value and remove the other ---
+	// Read before update (plan)
+	expectRequest(getConfigResponse(t))
+	// the removed variable first, then the changed ones
+	expectRequest(unsetConfigReplicaValueResponse(t, "innodb_flush_log_at_trx_commit"))
+	expectRequest(setConfigReplicaValueResponse(t, "sync_binlog", "1"))
+	// Read after update
+	expectRequest(getConfigResponse(t))
+
+	// --- Step 3: remove the whole map ---
+	// Read before update (plan)
+	expectRequest(getConfigResponse(t))
+	expectRequest(unsetConfigReplicaValueResponse(t, "sync_binlog"))
+	// Read after update
+	expectRequest(getConfigResponse(t))
+
+	// --- Destroy ---
+	expectRequest(deleteConfigResponse(t))
+
+	configWith := func(replica string) string {
+		return fmt.Sprintf(`
+		resource "skysql_config" "test" {
+			name     = "%s"
+			topology = "%s"
+			version  = "%s"
+			%s
+		}`, testConfigName, testTopology, testVersion, replica)
+	}
+
+	resource.Test(t, resource.TestCase{
+		IsUnitTest: true,
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"skysql": providerserver.NewProtocol6WithError(New("")()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: configWith(`replica_values = {
+					"sync_binlog"                    = "100"
+					"innodb_flush_log_at_trx_commit" = "2"
+				}`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("skysql_config.test", "replica_values.sync_binlog", "100"),
+					resource.TestCheckResourceAttr("skysql_config.test", "replica_values.innodb_flush_log_at_trx_commit", "2"),
+				),
+			},
+			{
+				Config: configWith(`replica_values = {
+					"sync_binlog" = "1"
+				}`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("skysql_config.test", "replica_values.sync_binlog", "1"),
+					resource.TestCheckNoResourceAttr("skysql_config.test", "replica_values.innodb_flush_log_at_trx_commit"),
+				),
+			},
+			{
+				Config: configWith(``),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("skysql_config.test", "replica_values.sync_binlog"),
+				),
+			},
+		},
+	})
+}
+
+// TestConfigResource_ReplicaValuesNotAvailable verifies the message when DPS has the replica
+// values turned off and answers 404.
+func TestConfigResource_ReplicaValuesNotAvailable(t *testing.T) {
+	configureOnce.Reset()
+
+	testUrl, expectRequest, close := mockSkySQLAPI(t)
+	defer close()
+	os.Setenv("TF_SKYSQL_API_KEY", "[api-key]")
+	os.Setenv("TF_SKYSQL_API_BASE_URL", testUrl)
+
+	expectRequest(versionsResponse(t))
+	expectRequest(createConfigResponse(t))
+	expectRequest(func(w http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "/provisioning/v1/configs/"+testConfigID+"/replica-values/sync_binlog", req.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	resource.Test(t, resource.TestCase{
+		IsUnitTest: true,
+		ProtoV6ProviderFactories: map[string]func() (tfprotov6.ProviderServer, error){
+			"skysql": providerserver.NewProtocol6WithError(New("")()),
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+				resource "skysql_config" "test" {
+					name     = "%s"
+					topology = "%s"
+					version  = "%s"
+					replica_values = {
+						"sync_binlog" = "100"
+					}
+				}`, testConfigName, testTopology, testVersion),
+				ExpectError: regexp.MustCompile(`replica values are not\s+available yet`),
+			},
+		},
+	})
+}
