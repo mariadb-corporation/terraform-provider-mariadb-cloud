@@ -674,7 +674,7 @@ func (c *Client) UnsetConfigValue(ctx context.Context, configID string, variable
 }
 
 // SetConfigReplicaValue sets the value of a variable for the replicas of a config. It calls
-// POST /configs/{id}/replica-values/{variable_name}. DPS answers 404 when the replica values are
+// POST /configs/{id}/replica-values/{variable_name}. The API answers 404 when the replica values are
 // not turned on, which this client reports as ErrorServiceNotFound.
 func (c *Client) SetConfigReplicaValue(ctx context.Context, configID string, variableName string, value string) error {
 	resp, err := c.HTTPClient.R().

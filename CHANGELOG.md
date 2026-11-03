@@ -2,7 +2,7 @@
 
 ## [3.5.9] - 2026-11-03
 ### Added
-- `skysql_config` has the new attribute `replica_values`. It sets another value on the replicas of an `es-replica` configuration than on the primary, for the variables that SkySQL allows it for. A variable that is not in the map has the value of the primary on the replicas too, and removing a variable from the map makes the replicas follow the primary again. The attribute needs a SkySQL environment that has the replica values turned on. Existing configurations do not change (MCDEV-5303).
+- `skysql_config` has the new attribute `replica_values`. It sets another value on the replicas of an `es-replica` configuration than on the primary, for the variables that SkySQL allows it for. A variable that is not in the map has the value of the primary on the replicas too, and removing a variable from the map makes the replicas follow the primary again. The attribute needs a SkySQL environment that has the replica values turned on. Existing configurations do not change.
 
 ## [3.5.8] - 2026-10-01
 ### Changed
