@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -36,14 +37,15 @@ type ConfigResource struct {
 
 // ConfigResourceModel describes the resource data model.
 type ConfigResourceModel struct {
-	ID           types.String `tfsdk:"id"`
-	Name         types.String `tfsdk:"name"`
-	Topology     types.String `tfsdk:"topology"`
-	Version      types.String `tfsdk:"version"`
-	TopologyID   types.String `tfsdk:"topology_id"`
-	VersionID    types.String `tfsdk:"version_id"`
-	AllowRestart types.Bool   `tfsdk:"allow_restart"`
-	Values       types.Map    `tfsdk:"values"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Topology      types.String `tfsdk:"topology"`
+	Version       types.String `tfsdk:"version"`
+	TopologyID    types.String `tfsdk:"topology_id"`
+	VersionID     types.String `tfsdk:"version_id"`
+	AllowRestart  types.Bool   `tfsdk:"allow_restart"`
+	Values        types.Map    `tfsdk:"values"`
+	ReplicaValues types.Map    `tfsdk:"replica_values"`
 }
 
 func (r *ConfigResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -120,6 +122,22 @@ func (r *ConfigResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				ElementType:         types.StringType,
 				Description:         "A map of MariaDB server variable names to their values (e.g. max_connections = \"500\").",
 				MarkdownDescription: "A map of MariaDB server variable names to their values (e.g. `max_connections = \"500\"`).",
+				PlanModifiers: []planmodifier.Map{
+					mapplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"replica_values": schema.MapAttribute{
+				Optional:    true,
+				ElementType: types.StringType,
+				Description: "A map of MariaDB server variable names to the value that the replicas use. " +
+					"A variable that is not in the map has the value of the primary on the replicas too. " +
+					"Only for the es-replica topology, and only for the variables that the key list marks with replica_configurable. " +
+					"To make the replicas follow the primary again, remove the variable from the map.",
+				MarkdownDescription: "A map of MariaDB server variable names to the value that the replicas use " +
+					"(e.g. `sync_binlog = \"100\"`). A variable that is not in the map has the value of the primary on the replicas too. " +
+					"Only for the `es-replica` topology, and only for the variables that the key list marks with `replica_configurable`. " +
+					"To make the replicas follow the primary again, remove the variable from the map. " +
+					"The variable does not have to be in `values`.",
 				PlanModifiers: []planmodifier.Map{
 					mapplanmodifier.UseStateForUnknown(),
 				},
@@ -248,6 +266,20 @@ func (r *ConfigResource) Create(ctx context.Context, req resource.CreateRequest,
 				)
 				return
 			}
+		}
+	}
+
+	// Set the replica values if provided.
+	if !data.ReplicaValues.IsNull() && !data.ReplicaValues.IsUnknown() {
+		replicaValues := make(map[string]string)
+		resp.Diagnostics.Append(data.ReplicaValues.ElementsAs(ctx, &replicaValues, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		resp.Diagnostics.Append(r.applyReplicaValues(ctx, config.ID, nil, replicaValues)...)
+		if resp.Diagnostics.HasError() {
+			return
 		}
 	}
 
@@ -403,6 +435,27 @@ func (r *ConfigResource) Update(ctx context.Context, req resource.UpdateRequest,
 		}
 	}
 
+	// Diff the replica values and apply the changes.
+	oldReplica := make(map[string]string)
+	newReplica := make(map[string]string)
+
+	if !state.ReplicaValues.IsNull() && !state.ReplicaValues.IsUnknown() {
+		resp.Diagnostics.Append(state.ReplicaValues.ElementsAs(ctx, &oldReplica, false)...)
+	}
+
+	if !plan.ReplicaValues.IsNull() && !plan.ReplicaValues.IsUnknown() {
+		resp.Diagnostics.Append(plan.ReplicaValues.ElementsAs(ctx, &newReplica, false)...)
+	}
+
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(r.applyReplicaValues(ctx, configID, oldReplica, newReplica)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	// Refresh state from plan.
 	plan.ID = state.ID
 	plan.TopologyID = state.TopologyID
@@ -438,4 +491,60 @@ func (r *ConfigResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 func (r *ConfigResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// applyReplicaValues moves the replica values of a config from the old map to the new one. A
+// variable that left the map is unset, so that the replicas follow the primary again. A new or
+// changed variable is set. Both lists are sorted, so that the order of the calls is stable.
+func (r *ConfigResource) applyReplicaValues(ctx context.Context, configID string, oldValues, newValues map[string]string) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	removed := make([]string, 0)
+	for name := range oldValues {
+		if _, exists := newValues[name]; !exists {
+			removed = append(removed, name)
+		}
+	}
+	sort.Strings(removed)
+
+	for _, name := range removed {
+		if err := r.client.UnsetConfigReplicaValue(ctx, configID, name); err != nil {
+			diags.AddError(
+				"Error unsetting replica config value",
+				replicaErrorDetail(fmt.Sprintf("Failed to unset the replica value of %q", name), err),
+			)
+			return diags
+		}
+	}
+
+	changed := make([]string, 0)
+	for name, newVal := range newValues {
+		if oldVal, exists := oldValues[name]; !exists || oldVal != newVal {
+			changed = append(changed, name)
+		}
+	}
+	sort.Strings(changed)
+
+	for _, name := range changed {
+		if err := r.client.SetConfigReplicaValue(ctx, configID, name, newValues[name]); err != nil {
+			diags.AddError(
+				"Error setting replica config value",
+				replicaErrorDetail(fmt.Sprintf("Failed to set the replica value of %q = %q", name, newValues[name]), err),
+			)
+			return diags
+		}
+	}
+
+	return diags
+}
+
+// replicaErrorDetail writes the message of a failed replica value call. DPS answers 404 to every
+// replica value call when the replica values are not turned on, and that looks the same as a
+// missing config, so the message names both.
+func replicaErrorDetail(prefix string, err error) string {
+	if errors.Is(err, skysql.ErrorServiceNotFound) {
+		return prefix + ": the configuration was not found, or the replica values are not available yet in this SkySQL environment."
+	}
+
+	return prefix + ": " + err.Error()
 }

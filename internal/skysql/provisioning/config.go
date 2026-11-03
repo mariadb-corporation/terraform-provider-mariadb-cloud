@@ -53,4 +53,10 @@ type ConfigKey struct {
 	RequiresRestart bool     `json:"requires_restart"`
 	MinimumValue    string   `json:"minimum_value,omitempty"`
 	MaximumValue    string   `json:"maximum_value,omitempty"`
+	// The replica fields are only in the answer when DPS has the replica values turned on, and
+	// only for a variable that can have a value of its own on the replicas.
+	ReplicaConfigurable *bool   `json:"replica_configurable,omitempty"`
+	ReplicaReadonly     *bool   `json:"replica_readonly,omitempty"`
+	ReplicaDefault      *string `json:"replica_default,omitempty"`
+	PrimaryReadonly     *bool   `json:"primary_readonly,omitempty"`
 }

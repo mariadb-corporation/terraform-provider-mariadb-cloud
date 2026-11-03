@@ -98,3 +98,26 @@ resource "skysql_service" "service_b" {
   wait_for_creation = true
   config_id         = skysql_config.shared.id
 }
+
+# Example 4: Use another value on the replicas
+#
+# In an es-replica configuration, selected variables can have a value on the
+# replicas that is different from the value on the primary. A variable that is
+# not in replica_values has the value of the primary on the replicas too.
+# To make the replicas follow the primary again, remove the variable from
+# replica_values.
+#
+# This needs a SkySQL environment that has the replica values turned on.
+resource "skysql_config" "replica_tuned" {
+  name     = "replica-tuned-config"
+  topology = "es-replica"
+  version  = "10.6.7-3-1"
+
+  values = {
+    "sync_binlog" = "1"
+  }
+
+  replica_values = {
+    "sync_binlog" = "100"
+  }
+}
