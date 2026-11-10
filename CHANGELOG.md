@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.11] - 2026-11-16
+### Added
+- Support for `io2` volumes on AWS. Like `io1`, `io2` needs `volume_iops`, does not take `volume_throughput`, and changes its IOPS in place. The API checks the IOPS range, and `io2` needs a SkySQL environment that offers it.
+
 ## [3.5.10] - 2026-11-11
 ### Added
 - Support for GCP services on `hyperdisk-balanced` volumes, which the API uses on machine types that can only attach Hyperdisk. On GCP an unset `volume_type` now takes the disk type the API creates, and on every provider the IOPS and throughput the API fills in stay out of state unless the configuration sets them.

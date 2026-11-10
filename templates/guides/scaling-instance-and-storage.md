@@ -80,7 +80,7 @@ resource "skysql_service" "default" {
 ### Storage Attributes
 
 - `storage` — Storage size in GB. Valid values: 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000.
-- `volume_iops` — Volume IOPS (AWS only). Applies to `gp3` and `io1` volume types.
+- `volume_iops` — Volume IOPS (AWS only). Applies to `gp3`, `io1` and `io2` volume types.
 - `volume_throughput` — Volume throughput in MB/s (AWS only). Applies to `gp3` volume type.
 
 ~> **Note:** Storage can only be scaled up, not down. Attempting to reduce storage size will result in an error from the SkySQL API.

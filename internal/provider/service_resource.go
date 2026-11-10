@@ -304,7 +304,7 @@ var serviceResourceSchemaV0 = schema.Schema{
 		"volume_type": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "The volume type. Valid values are: gp3 and io1 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk",
+			Description: "The volume type. Valid values are: gp3, io1 and io2 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 				stringplanmodifier.RequiresReplaceIf(
@@ -1509,14 +1509,14 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		if plan.VolumeType.IsNull() {
 			resp.Diagnostics.AddAttributeError(path.Root("volume_type"),
 				"volume_type is required",
-				"volume_type is required for AWS. Use: io1 or gp3 for volume_type.")
+				"volume_type is required for AWS. Use: io1, io2 or gp3 for volume_type.")
 			return
 		}
 
-		if plan.VolumeType.ValueString() != "io1" && plan.VolumeType.ValueString() != "gp3" {
+		if !Contains[string]([]string{"io1", "io2", "gp3"}, plan.VolumeType.ValueString()) {
 			resp.Diagnostics.AddAttributeError(path.Root("volume_type"),
 				"volume_type is not supported",
-				"volume_type provided is not supported. Use: io1 or gp3 for volume_type.")
+				"volume_type provided is not supported. Use: io1, io2 or gp3 for volume_type.")
 			return
 		}
 
@@ -1527,9 +1527,9 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			return
 		}
 
-		if plan.VolumeType.ValueString() == "io1" && !plan.VolumeThroughput.IsNull() {
+		if plan.VolumeType.ValueString() != "gp3" && !plan.VolumeThroughput.IsNull() {
 			resp.Diagnostics.AddAttributeError(path.Root("volume_throughput"),
-				"volume_throughput is not supported for io1",
+				fmt.Sprintf("volume_throughput is not supported for %s", plan.VolumeType.ValueString()),
 				"volume_throughput is supported only for gp3 volume_type for AWS")
 			return
 		}
