@@ -304,7 +304,7 @@ var serviceResourceSchemaV0 = schema.Schema{
 		"volume_type": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "The volume type. Valid values are: gp3 and io1. This is only applicable for AWS",
+			Description: "The volume type. Valid values are: gp3 and io1 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 				stringplanmodifier.RequiresReplaceIf(
@@ -560,6 +560,12 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 		AvailabilityZone:   state.AvailabilityZone.ValueString(),
 	}
 
+	// An unset GCP volume_type is planned as unknown, so state takes the disk the API
+	// creates. The request still asks for pd-ssd, as it always has.
+	if createServiceRequest.Provider == "gcp" && createServiceRequest.VolumeType == "" {
+		createServiceRequest.VolumeType = "pd-ssd"
+	}
+
 	// Convert Tags from Terraform to map[string]string
 	if !state.Tags.IsNull() && !state.Tags.IsUnknown() {
 		var tags map[string]string
@@ -650,12 +656,15 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 
 	tflog.Trace(ctx, "created a resource")
 
-	if service.StorageVolume.IOPS > 0 {
+	// Like Read, keep only the IOPS and throughput the configuration sets. The API
+	// fills them in for some disks, e.g. 3000 IOPS on GCP Hyperdisk Balanced, and
+	// those must not show up as values the plan did not have.
+	if !state.VolumeIOPS.IsNull() && service.StorageVolume.IOPS > 0 {
 		state.VolumeIOPS = types.Int64Value(int64(service.StorageVolume.IOPS))
 	} else {
 		state.VolumeIOPS = types.Int64Null()
 	}
-	if service.StorageVolume.Throughput > 0 {
+	if !state.VolumeThroughput.IsNull() && service.StorageVolume.Throughput > 0 {
 		state.VolumeThroughput = types.Int64Value(int64(service.StorageVolume.Throughput))
 	} else {
 		state.VolumeThroughput = types.Int64Null()
@@ -1533,19 +1542,18 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		}
 
 	} else if plan.Provider.ValueString() == "gcp" {
-		if !(plan.VolumeType.ValueString() == "" || plan.VolumeType.IsNull() || plan.VolumeType.ValueString() == "pd-ssd") {
+		// The API can give a GCP service hyperdisk-balanced on machine types that can't
+		// attach pd-ssd. So only the configuration is checked, and an unset volume_type
+		// stays unknown until the API answers.
+		if v := config.VolumeType.ValueString(); v != "" && v != "pd-ssd" {
 			resp.Diagnostics.AddAttributeError(
 				path.Root("volume_type"),
 				fmt.Sprintf("volume_type = %q is not supported for %q provider",
-					plan.VolumeType.ValueString(),
+					v,
 					plan.Provider.ValueString(),
 				),
 				fmt.Sprintf("Volume type is not supported for %q provider", plan.Provider.ValueString()))
 			return
-		}
-
-		if plan.VolumeType.ValueString() == "" || plan.VolumeType.IsNull() {
-			resp.Plan.SetAttribute(ctx, path.Root("volume_type"), types.StringValue("pd-ssd"))
 		}
 
 		if !plan.VolumeIOPS.IsNull() {
