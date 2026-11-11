@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.10] - 2026-11-11
+### Added
+- Support for GCP services on `hyperdisk-balanced` volumes, which the API uses on machine types that can only attach Hyperdisk. On GCP an unset `volume_type` now takes the disk type the API creates, and on every provider the IOPS and throughput the API fills in stay out of state unless the configuration sets them.
+
 ## [3.5.9] - 2026-11-03
 ### Added
 - `skysql_config` has the new attribute `replica_values`. It sets another value on the replicas of an `es-replica` configuration than on the primary, for the variables that SkySQL allows it for. A variable that is not in the map has the value of the primary on the replicas too, and removing a variable from the map makes the replicas follow the primary again. The attribute needs a SkySQL environment that has the replica values turned on. Existing configurations do not change.
