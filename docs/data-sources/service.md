@@ -79,11 +79,11 @@ Read-Only:
 
 Optional:
 
-- `iops` (Number) The number of IOPS for the storage volume. This is only applicable for io1 and gp3 volumes.
+- `iops` (Number) The number of IOPS for the storage volume. This is only applicable for io1, io2 and gp3 volumes.
 - `throughput` (Number) The Throughput for the storage volume. This is only applicable for gp3 volumes.
 
 Read-Only:
 
 - `size` (Number) The size of the storage volume in GB.
-- `volume_type` (String) The type of the storage volume. Possible values are: gp3, io1 etc
+- `volume_type` (String) The type of the storage volume. Possible values are: gp3, io1, io2 etc
 

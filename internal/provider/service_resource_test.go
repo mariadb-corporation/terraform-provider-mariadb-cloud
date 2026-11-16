@@ -646,7 +646,7 @@ resource "skysql_service" default {
 					w.WriteHeader(http.StatusOK)
 				})
 			},
-			expectError: regexp.MustCompile(`volume_type provided is not supported. Use: io1 or gp3 for volume_type.`),
+			expectError: regexp.MustCompile(`volume_type provided is not supported. Use: io1, io2 or gp3 for volume_type.`),
 		},
 		{
 			name: "invalid volume_type for aws",
@@ -680,7 +680,7 @@ resource "skysql_service" default {
 					w.WriteHeader(http.StatusOK)
 				})
 			},
-			expectError: regexp.MustCompile(`volume_type provided is not supported. Use: io1 or gp3 for volume_type.`),
+			expectError: regexp.MustCompile(`volume_type provided is not supported. Use: io1, io2 or gp3 for volume_type.`),
 		},
 		{
 			name: "volume_iops are required for aws",
