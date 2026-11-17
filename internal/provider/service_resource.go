@@ -272,14 +272,14 @@ var serviceResourceSchemaV0 = schema.Schema{
 		},
 		"volume_iops": schema.Int64Attribute{
 			Optional:    true,
-			Description: "The volume IOPS. This is only applicable for AWS",
+			Description: "The volume IOPS. This is only applicable for AWS, and for PremiumV2_LRS volumes on Azure",
 			PlanModifiers: []planmodifier.Int64{
 				int64planmodifier.UseStateForUnknown(),
 			},
 		},
 		"volume_throughput": schema.Int64Attribute{
 			Optional:    true,
-			Description: "The volume Throughput. This is only applicable for AWS",
+			Description: "The volume Throughput. This is only applicable for AWS, and for PremiumV2_LRS volumes on Azure",
 			PlanModifiers: []planmodifier.Int64{
 				int64planmodifier.UseStateForUnknown(),
 			},
@@ -304,7 +304,7 @@ var serviceResourceSchemaV0 = schema.Schema{
 		"volume_type": schema.StringAttribute{
 			Optional:    true,
 			Computed:    true,
-			Description: "The volume type. Valid values are: gp3, io1 and io2 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk",
+			Description: "The volume type. Valid values are: gp3, io1 and io2 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk. On Azure: StandardSSD_LRS or PremiumV2_LRS. Leave it unset and the API picks PremiumV2_LRS where it is offered",
 			PlanModifiers: []planmodifier.String{
 				stringplanmodifier.UseStateForUnknown(),
 				stringplanmodifier.RequiresReplaceIf(
@@ -1018,7 +1018,11 @@ func (r *ServiceResource) updateAllowListState(plan *ServiceResourceModel, state
 }
 
 func (r *ServiceResource) updateServiceStorage(ctx context.Context, plan *ServiceResourceModel, state *ServiceResourceModel, resp *resource.UpdateResponse) {
-	if plan.Storage.ValueInt64() != state.Storage.ValueInt64() || plan.VolumeIOPS.ValueInt64() != state.VolumeIOPS.ValueInt64() || plan.VolumeThroughput.ValueInt64() != state.VolumeThroughput.ValueInt64() {
+	// IOPS and throughput are optional on Azure PremiumV2_LRS. Taking one out of the
+	// configuration leaves the disk as it is, and the value drops out of state as on Read.
+	iopsChanged := !plan.VolumeIOPS.IsNull() && plan.VolumeIOPS.ValueInt64() != state.VolumeIOPS.ValueInt64()
+	throughputChanged := !plan.VolumeThroughput.IsNull() && plan.VolumeThroughput.ValueInt64() != state.VolumeThroughput.ValueInt64()
+	if plan.Storage.ValueInt64() != state.Storage.ValueInt64() || iopsChanged || throughputChanged {
 		tflog.Info(ctx, "Updating storage size for the service", map[string]interface{}{
 			"id":              state.ID.ValueString(),
 			"from":            state.Storage.ValueInt64(),
@@ -1038,12 +1042,17 @@ func (r *ServiceResource) updateServiceStorage(ctx context.Context, plan *Servic
 
 		state.Storage = plan.Storage
 		state.VolumeIOPS = plan.VolumeIOPS
+		state.VolumeThroughput = plan.VolumeThroughput
 		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
 			return
 		}
 		r.waitForUpdate(ctx, state, resp)
+		return
 	}
+
+	state.VolumeIOPS = plan.VolumeIOPS
+	state.VolumeThroughput = plan.VolumeThroughput
 }
 
 func (r *ServiceResource) updateNumberOfNodeForService(ctx context.Context, plan *ServiceResourceModel, state *ServiceResourceModel, resp *resource.UpdateResponse) {
@@ -1563,16 +1572,27 @@ func (r *ServiceResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 			return
 		}
 	} else if plan.Provider.ValueString() == "azure" {
-		if plan.VolumeType.ValueString() != "" && plan.VolumeType.ValueString() != "StandardSSD_LRS" {
+		// The API picks the disk for an unset volume_type, PremiumV2_LRS where it is
+		// offered. So only the configuration is checked, as on GCP.
+		volumeType := config.VolumeType.ValueString()
+		if volumeType != "" && !Contains[string]([]string{"StandardSSD_LRS", "PremiumV2_LRS"}, volumeType) {
 			resp.Diagnostics.AddAttributeError(path.Root("volume_type"),
-				"volume_type is not supported for azure provider",
-				"Volume type is not supported for azure provider")
+				"volume_type is not supported",
+				"volume_type provided is not supported. Use: StandardSSD_LRS or PremiumV2_LRS for volume_type.")
 			return
 		}
-		if !plan.VolumeIOPS.IsNull() {
+
+		if volumeType != "PremiumV2_LRS" && !plan.VolumeIOPS.IsNull() {
 			resp.Diagnostics.AddAttributeError(path.Root("volume_iops"),
-				"volume_iops is not supported for azure provider",
-				"Volume IOPS are not supported for azure provider")
+				"volume_iops is not supported",
+				"volume_iops is supported only for PremiumV2_LRS volume_type for Azure")
+			return
+		}
+
+		if volumeType != "PremiumV2_LRS" && !plan.VolumeThroughput.IsNull() {
+			resp.Diagnostics.AddAttributeError(path.Root("volume_throughput"),
+				"volume_throughput is not supported",
+				"volume_throughput is supported only for PremiumV2_LRS volume_type for Azure")
 			return
 		}
 	}

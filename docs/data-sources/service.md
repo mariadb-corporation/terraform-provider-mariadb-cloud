@@ -79,8 +79,8 @@ Read-Only:
 
 Optional:
 
-- `iops` (Number) The number of IOPS for the storage volume. This is only applicable for io1, io2 and gp3 volumes.
-- `throughput` (Number) The Throughput for the storage volume. This is only applicable for gp3 volumes.
+- `iops` (Number) The number of IOPS for the storage volume. This is only applicable for io1, io2, gp3 and PremiumV2_LRS volumes.
+- `throughput` (Number) The Throughput for the storage volume. This is only applicable for gp3 and PremiumV2_LRS volumes.
 
 Read-Only:
 

@@ -104,9 +104,9 @@ resource "skysql_service" "galera" {
 - `tags` (Map of String) User-defined tags for the service. Use tags.name to set a display name (the API sets this to the service name by default on creation). Only the tag keys you specify here are tracked in Terraform state; any server-injected tags are ignored.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `version` (String) The software version
-- `volume_iops` (Number) The volume IOPS. This is only applicable for AWS
-- `volume_throughput` (Number) The volume Throughput. This is only applicable for AWS
-- `volume_type` (String) The volume type. Valid values are: gp3, io1 and io2 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk
+- `volume_iops` (Number) The volume IOPS. This is only applicable for AWS, and for PremiumV2_LRS volumes on Azure
+- `volume_throughput` (Number) The volume Throughput. This is only applicable for AWS, and for PremiumV2_LRS volumes on Azure
+- `volume_type` (String) The volume type. Valid values are: gp3, io1 and io2 on AWS. On GCP, leave it unset and the API picks pd-ssd, or hyperdisk-balanced on machine types that can only attach Hyperdisk. On Azure: StandardSSD_LRS or PremiumV2_LRS. Leave it unset and the API picks PremiumV2_LRS where it is offered
 - `wait_for_creation` (Boolean) Whether to wait for the service to be created. Valid values are: true or false
 - `wait_for_deletion` (Boolean) Whether to wait for the service to be deleted. Valid values are: true or false
 - `wait_for_update` (Boolean) Whether to wait for the service to be updated. Valid values are: true or false

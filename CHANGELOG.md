@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.12] - 2026-11-17
+### Added
+- Support for Azure `PremiumV2_LRS` volumes. With `volume_type = "PremiumV2_LRS"`, `volume_iops` and `volume_throughput` can be set and changed in place. Both are optional, and the API checks their ranges. An unset Azure `volume_type` now takes the disk the API creates, `PremiumV2_LRS` where it is offered, and no longer fails the next plan.
+
 ## [3.5.11] - 2026-11-16
 ### Added
 - Support for `io2` volumes on AWS. Like `io1`, `io2` needs `volume_iops`, does not take `volume_throughput`, and changes its IOPS in place. The API checks the IOPS range, and `io2` needs a SkySQL environment that offers it.
