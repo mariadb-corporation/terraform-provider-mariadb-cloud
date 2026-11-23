@@ -88,8 +88,6 @@ type ServiceResourceModel struct {
 	AllowedAccounts    types.List     `tfsdk:"endpoint_allowed_accounts"`
 	EndpointService    types.String   `tfsdk:"endpoint_service"`
 	WaitForDeletion    types.Bool     `tfsdk:"wait_for_deletion"`
-	ReplicationEnabled types.Bool     `tfsdk:"replication_enabled"`
-	PrimaryHost        types.String   `tfsdk:"primary_host"`
 	IsActive           types.Bool     `tfsdk:"is_active"`
 	WaitForUpdate      types.Bool     `tfsdk:"wait_for_update"`
 	DeletionProtection types.Bool     `tfsdk:"deletion_protection"`
@@ -127,8 +125,6 @@ type serviceResourceModelV1 struct {
 	AllowedAccounts    types.List     `tfsdk:"endpoint_allowed_accounts"`
 	EndpointService    types.String   `tfsdk:"endpoint_service"`
 	WaitForDeletion    types.Bool     `tfsdk:"wait_for_deletion"`
-	ReplicationEnabled types.Bool     `tfsdk:"replication_enabled"`
-	PrimaryHost        types.String   `tfsdk:"primary_host"`
 	IsActive           types.Bool     `tfsdk:"is_active"`
 	WaitForUpdate      types.Bool     `tfsdk:"wait_for_update"`
 	DeletionProtection types.Bool     `tfsdk:"deletion_protection"`
@@ -349,24 +345,6 @@ var serviceResourceSchemaV0 = schema.Schema{
 			PlanModifiers: []planmodifier.Bool{
 				boolDefault(true),
 				boolplanmodifier.UseStateForUnknown(),
-			},
-		},
-		"replication_enabled": schema.BoolAttribute{
-			Optional:           true,
-			Description:        "Has no effect. The provider does not send it when it creates a service.",
-			DeprecationMessage: "replication_enabled has no effect and will be removed in a future version.",
-			PlanModifiers: []planmodifier.Bool{
-				boolplanmodifier.RequiresReplace(),
-				boolplanmodifier.UseStateForUnknown(),
-			},
-		},
-		"primary_host": schema.StringAttribute{
-			Optional:           true,
-			Description:        "Has no effect. The provider does not send it when it creates a service.",
-			DeprecationMessage: "primary_host has no effect and will be removed in a future version.",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
-				stringplanmodifier.UseStateForUnknown(),
 			},
 		},
 		"is_active": schema.BoolAttribute{
@@ -865,12 +843,6 @@ func (r *ServiceResource) readServiceState(ctx context.Context, data *ServiceRes
 		data.VolumeThroughput = types.Int64Null()
 	}
 	data.VolumeType = types.StringValue(service.StorageVolume.VolumeType)
-	if !data.ReplicationEnabled.IsNull() {
-		data.ReplicationEnabled = types.BoolValue(service.ReplicationEnabled)
-	}
-	if !data.PrimaryHost.IsNull() {
-		data.PrimaryHost = types.StringValue(service.PrimaryHost)
-	}
 	data.IsActive = types.BoolValue(service.IsActive)
 	data.SSLEnabled = types.BoolValue(service.SSLEnabled)
 	if len(service.Endpoints) > 0 {
@@ -1779,8 +1751,6 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					AllowedAccounts:    oldState.AllowedAccounts,
 					EndpointService:    oldState.EndpointService,
 					WaitForDeletion:    oldState.WaitForDeletion,
-					ReplicationEnabled: oldState.ReplicationEnabled,
-					PrimaryHost:        oldState.PrimaryHost,
 					IsActive:           oldState.IsActive,
 					WaitForUpdate:      oldState.WaitForUpdate,
 					DeletionProtection: oldState.DeletionProtection,

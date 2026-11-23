@@ -1,8 +1,8 @@
 # Changelog
 
 ## [3.5.13] - 2026-11-23
-### Deprecated
-- The `skysql_service` attributes `replication_enabled` and `primary_host` never had an effect, and the provider no longer sends them when it creates a service. A configuration that sets them still plans, with a deprecation warning. They will be removed in a future version. The `global-replication` example, which used them, is removed.
+### Removed
+- The `skysql_service` attributes `replication_enabled` and `primary_host`, and the `global-replication` example that used them. They only applied to the retired Xpand topology and never had an effect. A configuration that still sets either one fails to plan with "Unsupported argument" until the line is removed.
 
 ## [3.5.12] - 2026-11-17
 ### Added

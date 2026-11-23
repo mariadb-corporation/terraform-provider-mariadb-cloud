@@ -95,9 +95,7 @@ resource "skysql_service" "galera" {
 - `maxscale_size` (String) The size of the MaxScale nodes. Valid values are: sky-2x4, sky-2x8 etc
 - `nodes` (Number) The number of nodes
 - `nosql_enabled` (Boolean) Whether to enable NoSQL. Valid values are: true or false
-- `primary_host` (String, Deprecated) Has no effect. The provider does not send it when it creates a service.
 - `project_id` (String) The ID of the project to create the service in
-- `replication_enabled` (Boolean, Deprecated) Has no effect. The provider does not send it when it creates a service.
 - `size` (String) The size of the service. Valid values are: sky-2x4, sky-2x8 etc
 - `ssl_enabled` (Boolean) Whether to enable SSL. Valid values are: true or false
 - `storage` (Number) The storage size in GB. Valid values are: 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000
