@@ -2,7 +2,7 @@
 
 ## [3.5.13] - 2026-11-23
 ### Removed
-- The `skysql_service` attributes `replication_enabled` and `primary_host`, and the `global-replication` example that used them. They only applied to the retired Xpand topology and never had an effect. A configuration that still sets either one fails to plan with "Unsupported argument" until the line is removed.
+- The `replication_enabled` and `primary_host` attributes of `skysql_service` are no longer supported and have been removed, along with the `global-replication` example.
 
 ## [3.5.12] - 2026-11-17
 ### Added
