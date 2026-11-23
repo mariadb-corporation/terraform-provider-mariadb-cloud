@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.5.13] - 2026-11-23
+### Deprecated
+- The `skysql_service` attributes `replication_enabled` and `primary_host` never had an effect, and the provider no longer sends them when it creates a service. A configuration that sets them still plans, with a deprecation warning. They will be removed in a future version. The `global-replication` example, which used them, is removed.
+
 ## [3.5.12] - 2026-11-17
 ### Added
 - Support for Azure `PremiumV2_LRS` volumes. With `volume_type = "PremiumV2_LRS"`, `volume_iops` and `volume_throughput` can be set and changed in place. Both are optional, and the API checks their ranges. An unset Azure `volume_type` now takes the disk the API creates, `PremiumV2_LRS` where it is offered, and no longer fails the next plan.
