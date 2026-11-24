@@ -88,8 +88,6 @@ type ServiceResourceModel struct {
 	AllowedAccounts    types.List     `tfsdk:"endpoint_allowed_accounts"`
 	EndpointService    types.String   `tfsdk:"endpoint_service"`
 	WaitForDeletion    types.Bool     `tfsdk:"wait_for_deletion"`
-	ReplicationEnabled types.Bool     `tfsdk:"replication_enabled"`
-	PrimaryHost        types.String   `tfsdk:"primary_host"`
 	IsActive           types.Bool     `tfsdk:"is_active"`
 	WaitForUpdate      types.Bool     `tfsdk:"wait_for_update"`
 	DeletionProtection types.Bool     `tfsdk:"deletion_protection"`
@@ -127,8 +125,6 @@ type serviceResourceModelV1 struct {
 	AllowedAccounts    types.List     `tfsdk:"endpoint_allowed_accounts"`
 	EndpointService    types.String   `tfsdk:"endpoint_service"`
 	WaitForDeletion    types.Bool     `tfsdk:"wait_for_deletion"`
-	ReplicationEnabled types.Bool     `tfsdk:"replication_enabled"`
-	PrimaryHost        types.String   `tfsdk:"primary_host"`
 	IsActive           types.Bool     `tfsdk:"is_active"`
 	WaitForUpdate      types.Bool     `tfsdk:"wait_for_update"`
 	DeletionProtection types.Bool     `tfsdk:"deletion_protection"`
@@ -351,22 +347,6 @@ var serviceResourceSchemaV0 = schema.Schema{
 				boolplanmodifier.UseStateForUnknown(),
 			},
 		},
-		"replication_enabled": schema.BoolAttribute{
-			Optional:    true,
-			Description: "Whether to enable global replication. Valid values are: true or false. Works for xpand-direct topology only",
-			PlanModifiers: []planmodifier.Bool{
-				boolplanmodifier.RequiresReplace(),
-				boolplanmodifier.UseStateForUnknown(),
-			},
-		},
-		"primary_host": schema.StringAttribute{
-			Optional:    true,
-			Description: "The primary host of the service",
-			PlanModifiers: []planmodifier.String{
-				stringplanmodifier.RequiresReplace(),
-				stringplanmodifier.UseStateForUnknown(),
-			},
-		},
 		"is_active": schema.BoolAttribute{
 			Optional:    true,
 			Computed:    true,
@@ -537,27 +517,25 @@ func (r *ServiceResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	createServiceRequest := &provisioning.CreateServiceRequest{
-		Name:               state.Name.ValueString(),
-		ProjectID:          state.ProjectID.ValueString(),
-		ServiceType:        state.ServiceType.ValueString(),
-		Provider:           state.Provider.ValueString(),
-		Region:             state.Region.ValueString(),
-		Version:            state.Version.ValueString(),
-		Nodes:              uint(state.Nodes.ValueInt64()),
-		Architecture:       state.Architecture.ValueString(),
-		Size:               state.Size.ValueString(),
-		Topology:           state.Topology.ValueString(),
-		Storage:            uint(state.Storage.ValueInt64()),
-		VolumeIOPS:         uint(state.VolumeIOPS.ValueInt64()),
-		VolumeThroughput:   uint(state.VolumeThroughput.ValueInt64()),
-		SSLEnabled:         state.SSLEnabled.ValueBool(),
-		NoSQLEnabled:       state.NoSQLEnabled.ValueBool(),
-		VolumeType:         state.VolumeType.ValueString(),
-		Mechanism:          state.Mechanism.ValueString(),
-		ReplicationEnabled: state.ReplicationEnabled.ValueBool(),
-		PrimaryHost:        state.PrimaryHost.ValueString(),
-		MaxscaleNodes:      uint(state.MaxscaleNodes.ValueInt64()),
-		AvailabilityZone:   state.AvailabilityZone.ValueString(),
+		Name:             state.Name.ValueString(),
+		ProjectID:        state.ProjectID.ValueString(),
+		ServiceType:      state.ServiceType.ValueString(),
+		Provider:         state.Provider.ValueString(),
+		Region:           state.Region.ValueString(),
+		Version:          state.Version.ValueString(),
+		Nodes:            uint(state.Nodes.ValueInt64()),
+		Architecture:     state.Architecture.ValueString(),
+		Size:             state.Size.ValueString(),
+		Topology:         state.Topology.ValueString(),
+		Storage:          uint(state.Storage.ValueInt64()),
+		VolumeIOPS:       uint(state.VolumeIOPS.ValueInt64()),
+		VolumeThroughput: uint(state.VolumeThroughput.ValueInt64()),
+		SSLEnabled:       state.SSLEnabled.ValueBool(),
+		NoSQLEnabled:     state.NoSQLEnabled.ValueBool(),
+		VolumeType:       state.VolumeType.ValueString(),
+		Mechanism:        state.Mechanism.ValueString(),
+		MaxscaleNodes:    uint(state.MaxscaleNodes.ValueInt64()),
+		AvailabilityZone: state.AvailabilityZone.ValueString(),
 	}
 
 	// An unset GCP volume_type is planned as unknown, so state takes the disk the API
@@ -865,12 +843,6 @@ func (r *ServiceResource) readServiceState(ctx context.Context, data *ServiceRes
 		data.VolumeThroughput = types.Int64Null()
 	}
 	data.VolumeType = types.StringValue(service.StorageVolume.VolumeType)
-	if !data.ReplicationEnabled.IsNull() {
-		data.ReplicationEnabled = types.BoolValue(service.ReplicationEnabled)
-	}
-	if !data.PrimaryHost.IsNull() {
-		data.PrimaryHost = types.StringValue(service.PrimaryHost)
-	}
 	data.IsActive = types.BoolValue(service.IsActive)
 	data.SSLEnabled = types.BoolValue(service.SSLEnabled)
 	if len(service.Endpoints) > 0 {
@@ -1779,8 +1751,6 @@ func (r *ServiceResource) UpgradeState(ctx context.Context) map[int64]resource.S
 					AllowedAccounts:    oldState.AllowedAccounts,
 					EndpointService:    oldState.EndpointService,
 					WaitForDeletion:    oldState.WaitForDeletion,
-					ReplicationEnabled: oldState.ReplicationEnabled,
-					PrimaryHost:        oldState.PrimaryHost,
 					IsActive:           oldState.IsActive,
 					WaitForUpdate:      oldState.WaitForUpdate,
 					DeletionProtection: oldState.DeletionProtection,
